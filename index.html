@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>刮紙產生器｜新表首留白修正版</title>
+  <title>刮紙產生器｜日期自動編碼修正版</title>
   <style>
     * { box-sizing: border-box; }
     :root {
@@ -215,8 +215,8 @@
       </select>
     </label>
 
-    <label>目前起始編號
-      <input id="codeStartInput" type="number" min="1" max="999999" value="1" />
+    <label>目前起始流水號
+      <input id="codeStartInput" type="number" min="1" max="999" value="1" />
     </label>
 
     <label>排列模式
@@ -238,7 +238,7 @@
     <button class="btn-white" onclick="printSheets()">列印並遞增編碼</button>
     <button class="btn-danger" onclick="resetCurrentPrefixCode()">重設目前類型編號</button>
 
-    <span class="hint">已加大 A4 安全留白，並讓表首更貼近內容邊界。</span>
+    <span class="hint">編碼格式：A1150624001（自動抓當天民國年月日＋三碼流水號）。</span>
   </div>
 
   <main id="sheetContainer" class="preview"></main>
@@ -254,8 +254,24 @@
     const sheetContainer = $("sheetContainer");
     let isPrintingByButton = false;
 
-    function getNextKey(prefix) {
-      return `kuji_img_header_v3_next_serial_${prefix}`;
+    function getRocDateCode(date = new Date()) {
+      const rocYear = date.getFullYear() - 1911;
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${rocYear}${month}${day}`;
+    }
+
+    function getOutputFileName() {
+      const count = Math.max(1, Math.min(999, Number(countInput.value) || 40));
+      return `(${count})刮-${getRocDateCode()}`;
+    }
+
+    function updateOutputFileName() {
+      document.title = getOutputFileName();
+    }
+
+    function getNextKey(prefix, dateCode = getRocDateCode()) {
+      return `kuji_img_header_v3_next_serial_${prefix}_${dateCode}`;
     }
 
     function getNextSerial(prefix) {
@@ -326,7 +342,7 @@
     }
 
     function formatSerial(prefix, serial) {
-      return `${prefix}${String(serial).padStart(4, "0")}`;
+      return `${prefix}${getRocDateCode()}${String(serial).padStart(3, "0")}`;
     }
 
     function calcFontSize(rows, columns) {
@@ -432,6 +448,7 @@
     function generateSheets() {
       saveSettings();
       updateColumnInputState();
+      updateOutputFileName();
       const pages = getPageCount();
       sheetContainer.innerHTML = "";
       for (let i = 0; i < pages; i++) {
@@ -442,12 +459,13 @@
     function printSheets() {
       isPrintingByButton = true;
       generateSheets();
+      updateOutputFileName();
       setTimeout(() => window.print(), 120);
     }
 
     function resetCurrentPrefixCode() {
       const prefix = codePrefixInput.value;
-      const ok = confirm(`確定要把 ${prefix} 類型的下一個編號重設為 0001 嗎？`);
+      const ok = confirm(`確定要把今天 ${prefix}${getRocDateCode()} 的下一個流水號重設為 001 嗎？`);
       if (!ok) return;
       setNextSerial(prefix, 1);
       codeStartInput.value = 1;
