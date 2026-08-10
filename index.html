@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>刮紙產生器｜日期自動編碼修正版</title>
+  <title>刮紙產生器｜日期加編號版</title>
   <style>
     * { box-sizing: border-box; }
     :root {
@@ -135,12 +135,19 @@
     .grid-info {
       width: var(--grid-width);
       margin: -0.5mm auto 1.8mm;
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
       align-items: center;
-      font-size: 11px;
-      color: #777;
+      font-family: "Arial Rounded MT Bold", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+      font-size: 14px;
+      font-weight: 900;
+      color: #000;
+      letter-spacing: 0.2px;
     }
+
+    .grid-info .info-left { text-align: left; white-space: nowrap; }
+    .grid-info .info-center { text-align: center; white-space: nowrap; }
+    .grid-info .info-right { text-align: right; white-space: nowrap; }
 
     .grid-wrap {
       width: var(--grid-width);
@@ -208,13 +215,6 @@
       <input id="countInput" type="number" min="1" max="999" value="40" />
     </label>
 
-    <label>編碼類型
-      <select id="codePrefixInput">
-        <option value="A" selected>A 現場</option>
-        <option value="C">C 直播</option>
-      </select>
-    </label>
-
     <label>目前起始流水號
       <input id="codeStartInput" type="number" min="1" max="999" value="1" />
     </label>
@@ -236,9 +236,9 @@
 
     <button class="btn-primary" onclick="generateSheets()">重新跳號</button>
     <button class="btn-white" onclick="printSheets()">列印並遞增編碼</button>
-    <button class="btn-danger" onclick="resetCurrentPrefixCode()">重設目前類型編號</button>
+    <button class="btn-danger" onclick="resetTodayCode()">重設今日編號</button>
 
-    <span class="hint">編碼格式：A1150624001（自動抓當天民國年月日＋三碼流水號）。</span>
+    <span class="hint">編碼格式：1150810001（自動抓當天民國年月日＋三碼流水號）。</span>
   </div>
 
   <main id="sheetContainer" class="preview"></main>
@@ -246,7 +246,6 @@
   <script>
     const $ = (id) => document.getElementById(id);
     const countInput = $("countInput");
-    const codePrefixInput = $("codePrefixInput");
     const codeStartInput = $("codeStartInput");
     const layoutModeInput = $("layoutModeInput");
     const columnInput = $("columnInput");
@@ -270,51 +269,49 @@
       document.title = getOutputFileName();
     }
 
-    function getNextKey(prefix, dateCode = getRocDateCode()) {
-      return `kuji_img_header_v3_next_serial_${prefix}_${dateCode}`;
+    function getNextKey(dateCode = getRocDateCode()) {
+      return `kuji_img_header_v3_next_serial_${dateCode}`;
     }
 
-    function getNextSerial(prefix) {
-      return Math.max(1, Number(localStorage.getItem(getNextKey(prefix))) || 1);
+    function getNextSerial() {
+      return Math.max(1, Number(localStorage.getItem(getNextKey())) || 1);
     }
 
-    function setNextSerial(prefix, serial) {
-      localStorage.setItem(getNextKey(prefix), String(Math.max(1, Number(serial) || 1)));
+    function setNextSerial(serial) {
+      localStorage.setItem(getNextKey(), String(Math.max(1, Number(serial) || 1)));
     }
 
-    function syncStartInputWithPrefix() {
-      codeStartInput.value = getNextSerial(codePrefixInput.value);
+    function syncStartInput() {
+      codeStartInput.value = getNextSerial();
     }
 
     function saveSettings() {
       const settings = {
         count: countInput.value,
-        prefix: codePrefixInput.value,
         layoutMode: layoutModeInput.value,
         columns: columnInput.value,
         pages: pageInput.value
       };
       localStorage.setItem("kuji_img_header_v3_settings", JSON.stringify(settings));
-      setNextSerial(codePrefixInput.value, codeStartInput.value);
+      setNextSerial(codeStartInput.value);
     }
 
     function loadSettings() {
       const raw = localStorage.getItem("kuji_img_header_v3_settings");
       if (!raw) {
-        syncStartInputWithPrefix();
+        syncStartInput();
         return;
       }
       try {
         const settings = JSON.parse(raw);
         countInput.value = settings.count || 40;
-        codePrefixInput.value = settings.prefix || "A";
         layoutModeInput.value = settings.layoutMode || "auto";
         columnInput.value = settings.columns || 8;
         pageInput.value = settings.pages || 1;
       } catch (e) {
         console.warn("讀取設定失敗", e);
       }
-      syncStartInputWithPrefix();
+      syncStartInput();
     }
 
     function updateColumnInputState() {
@@ -341,8 +338,8 @@
       return Math.max(2, String(count).length);
     }
 
-    function formatSerial(prefix, serial) {
-      return `${prefix}${getRocDateCode()}${String(serial).padStart(3, "0")}`;
+    function formatSerial(serial) {
+      return `${getRocDateCode()}${String(serial).padStart(3, "0")}`;
     }
 
     function calcFontSize(rows, columns) {
@@ -394,9 +391,8 @@
     }
 
     function getBatchCode(index) {
-      const prefix = codePrefixInput.value;
       const start = Math.max(1, Number(codeStartInput.value) || 1);
-      return formatSerial(prefix, start + index);
+      return formatSerial(start + index);
     }
 
     function createSheet(index) {
@@ -415,8 +411,9 @@
         </div>
 
         <div class="grid-info">
-          <span>${count} 刮｜編碼：${code}</span>
-          <span>${layout.columns} 欄 × ${layout.rows} 列${layoutModeInput.value === "auto" ? "｜自動排列" : "｜手動欄數"}</span>
+          <span class="info-left">(${count})抽</span>
+          <span class="info-center">前　　抽內中獎免單，小賞可折抵店內盲盒20元</span>
+          <span class="info-right">編碼：${code}</span>
         </div>
 
         <div class="grid-wrap">
@@ -433,11 +430,10 @@
     }
 
     function advanceSerialAfterPrint() {
-      const prefix = codePrefixInput.value;
       const start = Math.max(1, Number(codeStartInput.value) || 1);
       const pages = getPageCount();
       const next = start + pages;
-      setNextSerial(prefix, next);
+      setNextSerial(next);
       codeStartInput.value = next;
       saveSettings();
     }
@@ -460,11 +456,10 @@
       setTimeout(() => window.print(), 120);
     }
 
-    function resetCurrentPrefixCode() {
-      const prefix = codePrefixInput.value;
-      const ok = confirm(`確定要把今天 ${prefix}${getRocDateCode()} 的下一個流水號重設為 001 嗎？`);
+    function resetTodayCode() {
+      const ok = confirm(`確定要把今天 ${getRocDateCode()} 的下一個流水號重設為 001 嗎？`);
       if (!ok) return;
-      setNextSerial(prefix, 1);
+      setNextSerial(1);
       codeStartInput.value = 1;
       generateSheets();
     }
@@ -480,13 +475,8 @@
       generateSheets();
     });
 
-    codePrefixInput.addEventListener("change", () => {
-      syncStartInputWithPrefix();
-      generateSheets();
-    });
-
     codeStartInput.addEventListener("input", () => {
-      setNextSerial(codePrefixInput.value, codeStartInput.value);
+      setNextSerial(codeStartInput.value);
       generateSheets();
     });
 
